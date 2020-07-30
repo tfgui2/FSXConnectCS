@@ -119,9 +119,13 @@ namespace FSXConnectCS
             {
                 try
                 {
-                    serialPort1.PortName = GetSerialPortName();
-                    serialPort1.Open();
-                    this.Log("Serial open " + serialPort1.PortName);
+                    string portname = GetSerialPortName();
+                    if (portname != null)
+                    {
+                        serialPort1.PortName = portname;
+                        serialPort1.Open();
+                        this.Log("Serial open " + serialPort1.PortName);
+                    }
                 }
                 catch(Exception e)
                 {
