@@ -18,16 +18,6 @@ using System.IO;
 using System.IO.Ports;
 
 
-/*
-enum CLIENT_EVENTS
-{
-    PITOT_TOGGLE,
-    FLAPS_INCR,
-    FLAPS_DECR,
-    FLAPS_UP,
-    FLAPS_DOWN,
-};
-*/
 namespace FSXConnectCS
 {
     public partial class Form1 : Form
