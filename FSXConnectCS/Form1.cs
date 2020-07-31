@@ -161,6 +161,9 @@ namespace FSXConnectCS
         }
         private void sendSimEvent(CLIENT_EVENTS clientEvent)
         {
+            if (simconnect == null)
+                return;
+
             simconnect.TransmitClientEvent(0, clientEvent, 0, NOTIFICATION_GROUPS.GROUP0, SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
         }
         private void InitClientEvent()
@@ -218,8 +221,13 @@ namespace FSXConnectCS
             switch (recEvent.uEventID)
             {
                 case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_DEC:
-
                     this.Log("COM_RADIO_WHOLE_DEC");
+                    break;
+                case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_INC:
+                    this.Log("COM_RADIO_WHOLE_INC");
+                    break;
+                case (uint)CLIENT_EVENTS.COM_STBY_RADIO_SWAP:
+                    this.Log("COM_STBY_RADIO_SWAP");
                     break;
 
             }
@@ -260,12 +268,15 @@ namespace FSXConnectCS
 
         private void serialReceived(object sender, EventArgs e)
         {
+            
             int b = serialPort1.ReadByte();
             if (Enum.IsDefined(typeof(CLIENT_EVENTS), b))
             {
                 this.Log(b.ToString());
                 sendSimEvent((CLIENT_EVENTS)b);
             }
+            int count = serialPort1.BytesToRead;
+            this.Log("byte:" + count.ToString());
         }
 
         private void serialSend(string msg)
