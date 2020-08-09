@@ -67,7 +67,8 @@ namespace FSXConnectCS
         // UDP property
         static int udpPort = 1234;
         UdpClient udpClient = null;
-        private string udpMsg;
+        
+        private byte udpbyte = 0;
         IPEndPoint remoteEp = null;
 
         private void Init()
@@ -241,15 +242,18 @@ namespace FSXConnectCS
                 IPEndPoint ep = new IPEndPoint(IPAddress.Any, udpPort);
                 byte[] buffer = udpClient.Receive(ref ep);
                 remoteEp = ep;
-                udpMsg = Encoding.UTF8.GetString(buffer);
-
+                udpbyte = buffer[0];
                 this.Invoke(new EventHandler(udpReceived));
             }
         }
 
         private void udpReceived(object sender, EventArgs e)
         {
-            this.Log(udpMsg);
+            if (Enum.IsDefined(typeof(CLIENT_EVENTS), (int)udpbyte))
+            {
+                this.Log(udpbyte.ToString());
+                sendSimEvent((CLIENT_EVENTS)udpbyte);
+            }
         }
 
         private void udpSend(string msg)
