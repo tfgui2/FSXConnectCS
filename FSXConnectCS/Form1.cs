@@ -293,5 +293,16 @@ namespace FSXConnectCS
             serialPort1.Write(msg);
         }
 
+        private void button1_Click(object sender, EventArgs e)
+        {
+            // test
+            sendSimEvent(CLIENT_EVENTS.COM1_TRANSMIT_SELECT);
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            // test
+            sendSimEvent(CLIENT_EVENTS.COM2_TRANSMIT_SELECT);
+        }
     }
 }
