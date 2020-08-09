@@ -222,14 +222,11 @@ namespace FSXConnectCS
             switch (recEvent.uEventID)
             {
                 case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_DEC:
+#if DEBUG
                     this.Log("COM_RADIO_WHOLE_DEC");
+#endif
                     break;
-                case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_INC:
-                    this.Log("COM_RADIO_WHOLE_INC");
-                    break;
-                case (uint)CLIENT_EVENTS.COM_STBY_RADIO_SWAP:
-                    this.Log("COM_STBY_RADIO_SWAP");
-                    break;
+                
 
             }
         }
@@ -251,7 +248,9 @@ namespace FSXConnectCS
         {
             if (Enum.IsDefined(typeof(CLIENT_EVENTS), (int)udpbyte))
             {
+#if DEBUG
                 this.Log(udpbyte.ToString());
+#endif
                 sendSimEvent((CLIENT_EVENTS)udpbyte);
             }
         }
