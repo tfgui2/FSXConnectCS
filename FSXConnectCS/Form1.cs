@@ -173,7 +173,7 @@ namespace FSXConnectCS
             public int stbyFreq;
         }
 
-        enum DEFINITIONS
+        enum DEFINITIONS // 원하는 데이터마다 각각 존재. fsx에서 누구의 정보를 가져올지 결졍함
         {
             Com1_freq=100,
             Com2_freq,
@@ -182,13 +182,10 @@ namespace FSXConnectCS
             Struct1,
         }
 
-        enum DATA_REQUESTS
+        enum DATA_REQUESTS // fsx랑 send/recv할때 사용하는 id. 
         {
             REQUEST_1,
-            REQUEST_COM1_FREQ,
-            REQUEST_COM2_FREQ,
-            REQUEST_NAV1_FREQ,
-            REQUEST_NAV2_FREQ,
+            
         };
 
         private void addSimEvent(CLIENT_EVENTS clientEvent, bool notify=false)
@@ -210,14 +207,7 @@ namespace FSXConnectCS
 
         private void sendSimRequest(DEFINITIONS request_define)
         {
-            DATA_REQUESTS dr = DATA_REQUESTS.REQUEST_COM1_FREQ;
-            switch (request_define)
-            {
-                case DEFINITIONS.Com1_freq:
-                    dr = DATA_REQUESTS.REQUEST_COM1_FREQ;
-                    break;
-            }
-            simconnect.RequestDataOnSimObjectType(dr, request_define, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_1, request_define, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
 
         }
         private void RegistDefine()
@@ -318,24 +308,14 @@ namespace FSXConnectCS
 
             }
         }
+
         void simconnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
         {
-
-            switch ((DATA_REQUESTS)data.dwRequestID)
+            switch((DEFINITIONS)data.dwDefineID)
             {
-                case DATA_REQUESTS.REQUEST_1:
-                    Struct1 s1 = (Struct1)data.dwData[0];
-                    this.Log("Title: " + s1.title);
-                    this.Log("Lat:   " + s1.latitude);
-                    this.Log("Lon:   " + s1.longitude);
-                    this.Log("Alt:   " + s1.altitude);
-                    break;
-
-                case DATA_REQUESTS.REQUEST_COM1_FREQ:
-                case DATA_REQUESTS.REQUEST_NAV1_FREQ:
-                case DATA_REQUESTS.REQUEST_COM2_FREQ:
-                case DATA_REQUESTS.REQUEST_NAV2_FREQ:
-                    {
+                case DEFINITIONS.Com1_freq:
+                case DEFINITIONS.Com2_freq:
+                {
                         STRUCT_REQ_FRQ freq = (STRUCT_REQ_FRQ)data.dwData[0];
                         string msg = data.dwRequestID + "," + freq.activeFreq.ToString("x") + "," + freq.stbyFreq.ToString("x");
                         udpReply(Encoding.UTF8.GetBytes(msg));
@@ -343,11 +323,8 @@ namespace FSXConnectCS
                     }
                     break;
 
-                default:
-                    this.Log("Unknown request ID: " + data.dwRequestID);
-                    udpReply(Encoding.UTF8.GetBytes("none"));
-                    break;
             }
+            
         }
 
 
@@ -427,17 +404,13 @@ namespace FSXConnectCS
             // The following call returns identical information to:
             // simconnect.RequestDataOnSimObject(DATA_REQUESTS.REQUEST_1, DEFINITIONS.Struct1, SimConnect.SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD.ONCE);
 
-            // simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_1, DEFINITIONS.Struct1, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
-            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_COM1_FREQ, DEFINITIONS.Com1_freq, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
-
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             // test
             //sendSimEvent(CLIENT_EVENTS.COM_RADIO_WHOLE_DEC);
-            //
-            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_NAV1_FREQ, DEFINITIONS.Nav1_freq, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+            
 
 
         }
