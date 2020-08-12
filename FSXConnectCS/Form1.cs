@@ -16,7 +16,8 @@ using System.Net.Sockets;
 
 using System.IO;
 using System.IO.Ports;
-
+using System.Threading;
+using System.Net.Http;
 
 namespace FSXConnectCS
 {
@@ -154,18 +155,101 @@ namespace FSXConnectCS
             GROUP0,
         }
 
-        private void addSimEvent(CLIENT_EVENTS clientEvent)
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        struct Struct1
+        {
+            // this is how you declare a fixed size string
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            public String title;
+            public double latitude;
+            public double longitude;
+            public double altitude;
+            public float freq;
+        };
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        struct STRUCT_REQ_FRQ
+        {
+            public int activeFreq;
+            public int stbyFreq;
+        }
+
+        enum DEFINITIONS
+        {
+            Com1_freq=100,
+            Com2_freq,
+            Nav1_freq,
+            Nav2_freq,
+            Struct1,
+        }
+
+        enum DATA_REQUESTS
+        {
+            REQUEST_1,
+            REQUEST_COM1_FREQ,
+            REQUEST_COM2_FREQ,
+            REQUEST_NAV1_FREQ,
+            REQUEST_NAV2_FREQ,
+        };
+
+        private void addSimEvent(CLIENT_EVENTS clientEvent, bool notify=false)
         {
             string simEvent = clientEvent.ToString();
             simconnect.MapClientEventToSimEvent(clientEvent, simEvent);
-            simconnect.AddClientEventToNotificationGroup(NOTIFICATION_GROUPS.GROUP0, clientEvent, false);
+            if (notify == true)
+            {
+                simconnect.AddClientEventToNotificationGroup(NOTIFICATION_GROUPS.GROUP0, clientEvent, false);
+            }
         }
-        private void sendSimEvent(CLIENT_EVENTS clientEvent)
+        private void sendSimEvent(CLIENT_EVENTS clientEvent, uint data=0)
         {
             if (simconnect == null)
                 return;
 
-            simconnect.TransmitClientEvent(0, clientEvent, 0, NOTIFICATION_GROUPS.GROUP0, SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
+            simconnect.TransmitClientEvent(0, clientEvent, data, NOTIFICATION_GROUPS.GROUP0, SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
+        }
+
+        private void sendSimRequest(DEFINITIONS request_define)
+        {
+            DATA_REQUESTS dr = DATA_REQUESTS.REQUEST_COM1_FREQ;
+            switch (request_define)
+            {
+                case DEFINITIONS.Com1_freq:
+                    dr = DATA_REQUESTS.REQUEST_COM1_FREQ;
+                    break;
+            }
+            simconnect.RequestDataOnSimObjectType(dr, request_define, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+
+        }
+        private void RegistDefine()
+        {
+            // define a data structure
+            simconnect.AddToDataDefinition(DEFINITIONS.Struct1, "Title", null, SIMCONNECT_DATATYPE.STRING256, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Struct1, "Plane Latitude", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Struct1, "Plane Longitude", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Struct1, "Plane Altitude", "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Struct1, "Com Active Frequency:1", "Frequency BCD16", SIMCONNECT_DATATYPE.FLOAT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            // IMPORTANT: register it with the simconnect managed wrapper marshaller
+            // if you skip this step, you will only receive a uint in the .dwData field.
+            simconnect.RegisterDataDefineStruct<Struct1>(DEFINITIONS.Struct1);
+
+            // com1 freq request
+            simconnect.AddToDataDefinition(DEFINITIONS.Com1_freq, "Com Active Frequency:1", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Com1_freq, "Com Standby Frequency:1", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_REQ_FRQ>(DEFINITIONS.Com1_freq);
+            // nav1 freq request
+            simconnect.AddToDataDefinition(DEFINITIONS.Nav1_freq, "Nav Active Frequency:1", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Nav1_freq, "Nav Standby Frequency:1", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_REQ_FRQ>(DEFINITIONS.Nav1_freq);
+            // com2 freq request
+            simconnect.AddToDataDefinition(DEFINITIONS.Com2_freq, "Com Active Frequency:2", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Com2_freq, "Com Standby Frequency:2", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_REQ_FRQ>(DEFINITIONS.Com2_freq);
+            // nav2 freq request
+            simconnect.AddToDataDefinition(DEFINITIONS.Nav2_freq, "Nav Active Frequency:2", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.Nav2_freq, "Nav Standby Frequency:2", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_REQ_FRQ>(DEFINITIONS.Nav2_freq);
+
+
         }
         private void InitClientEvent()
         {
@@ -180,12 +264,15 @@ namespace FSXConnectCS
                 simconnect.OnRecvEvent += new SimConnect.RecvEventEventHandler(simconnect_OnRecvEvent);
                 // set the group priority
                 simconnect.SetNotificationGroupPriority(NOTIFICATION_GROUPS.GROUP0, SimConnect.SIMCONNECT_GROUP_PRIORITY_HIGHEST);
-
                 // add event
                 foreach (CLIENT_EVENTS ce in Enum.GetValues(typeof(CLIENT_EVENTS)))
                 {
                     addSimEvent(ce);
                 }
+
+                RegistDefine();
+                // catch a simobject data request
+                simconnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(simconnect_OnRecvSimobjectDataBytype);
 
             }
             catch (COMException ex)
@@ -221,6 +308,7 @@ namespace FSXConnectCS
         {
             switch (recEvent.uEventID)
             {
+                case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_INC:
                 case (uint)CLIENT_EVENTS.COM_RADIO_WHOLE_DEC:
 #if DEBUG
                     this.Log("COM_RADIO_WHOLE_DEC");
@@ -228,6 +316,37 @@ namespace FSXConnectCS
                     break;
                 
 
+            }
+        }
+        void simconnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
+        {
+
+            switch ((DATA_REQUESTS)data.dwRequestID)
+            {
+                case DATA_REQUESTS.REQUEST_1:
+                    Struct1 s1 = (Struct1)data.dwData[0];
+                    this.Log("Title: " + s1.title);
+                    this.Log("Lat:   " + s1.latitude);
+                    this.Log("Lon:   " + s1.longitude);
+                    this.Log("Alt:   " + s1.altitude);
+                    break;
+
+                case DATA_REQUESTS.REQUEST_COM1_FREQ:
+                case DATA_REQUESTS.REQUEST_NAV1_FREQ:
+                case DATA_REQUESTS.REQUEST_COM2_FREQ:
+                case DATA_REQUESTS.REQUEST_NAV2_FREQ:
+                    {
+                        STRUCT_REQ_FRQ freq = (STRUCT_REQ_FRQ)data.dwData[0];
+                        string msg = data.dwRequestID + "," + freq.activeFreq.ToString("x") + "," + freq.stbyFreq.ToString("x");
+                        udpReply(Encoding.UTF8.GetBytes(msg));
+                        this.Log(msg);
+                    }
+                    break;
+
+                default:
+                    this.Log("Unknown request ID: " + data.dwRequestID);
+                    udpReply(Encoding.UTF8.GetBytes("none"));
+                    break;
             }
         }
 
@@ -253,8 +372,12 @@ namespace FSXConnectCS
 #endif
                 sendSimEvent((CLIENT_EVENTS)udpbyte);
             }
+            else if (Enum.IsDefined(typeof(DEFINITIONS), (int)udpbyte))
+            {
+                sendSimRequest((DEFINITIONS)udpbyte);
+                
+            }
         }
-
         private void udpSend(string msg)
         {
             if (remoteEp == null)
@@ -262,6 +385,13 @@ namespace FSXConnectCS
 
             byte[] buffer = Encoding.UTF8.GetBytes(msg);
             udpClient.Send(buffer, buffer.Length, remoteEp);
+        }
+        private void udpReply(byte[] bytes)
+        {
+            if (remoteEp == null)
+                return;
+
+            udpClient.Send(bytes, bytes.Length, remoteEp);
         }
 
         private void serialPort1_DataReceived(object sender, SerialDataReceivedEventArgs e)
@@ -294,14 +424,22 @@ namespace FSXConnectCS
 
         private void button1_Click(object sender, EventArgs e)
         {
-            // test
-            sendSimEvent(CLIENT_EVENTS.COM1_TRANSMIT_SELECT);
+            // The following call returns identical information to:
+            // simconnect.RequestDataOnSimObject(DATA_REQUESTS.REQUEST_1, DEFINITIONS.Struct1, SimConnect.SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD.ONCE);
+
+            // simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_1, DEFINITIONS.Struct1, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_COM1_FREQ, DEFINITIONS.Com1_freq, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+
         }
 
         private void button2_Click(object sender, EventArgs e)
         {
             // test
-            sendSimEvent(CLIENT_EVENTS.COM2_TRANSMIT_SELECT);
+            //sendSimEvent(CLIENT_EVENTS.COM_RADIO_WHOLE_DEC);
+            //
+            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_NAV1_FREQ, DEFINITIONS.Nav1_freq, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
+
+
         }
     }
 }
