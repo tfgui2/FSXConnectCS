@@ -154,7 +154,21 @@ namespace FSXConnectCS
         {
             GROUP0,
         }
+        enum DATA_REQUESTS // fsx랑 send/recv할때 사용하는 id. 
+        {
+            REQUEST_1,
+        };
 
+
+        enum DEFINITIONS // 원하는 데이터마다 각각 존재. fsx에서 누구의 정보를 가져올지 결졍함
+        {
+            Com1_freq=100,
+            Com2_freq,
+            Nav1_freq,
+            Nav2_freq,
+            AP_buttons,
+            Struct1,
+        }
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
         struct Struct1
         {
@@ -171,45 +185,17 @@ namespace FSXConnectCS
         {
             public int activeFreq;
             public int stbyFreq;
-        }
-
-        enum DEFINITIONS // 원하는 데이터마다 각각 존재. fsx에서 누구의 정보를 가져올지 결졍함
-        {
-            Com1_freq=100,
-            Com2_freq,
-            Nav1_freq,
-            Nav2_freq,
-            Struct1,
-        }
-
-        enum DATA_REQUESTS // fsx랑 send/recv할때 사용하는 id. 
-        {
-            REQUEST_1,
-            
         };
-
-        private void addSimEvent(CLIENT_EVENTS clientEvent, bool notify=false)
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        struct STRUCT_AP_BUTTONS
         {
-            string simEvent = clientEvent.ToString();
-            simconnect.MapClientEventToSimEvent(clientEvent, simEvent);
-            if (notify == true)
-            {
-                simconnect.AddClientEventToNotificationGroup(NOTIFICATION_GROUPS.GROUP0, clientEvent, false);
-            }
-        }
-        private void sendSimEvent(CLIENT_EVENTS clientEvent, uint data=0)
-        {
-            if (simconnect == null)
-                return;
-
-            simconnect.TransmitClientEvent(0, clientEvent, data, NOTIFICATION_GROUPS.GROUP0, SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
-        }
-
-        private void sendSimRequest(DEFINITIONS request_define)
-        {
-            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_1, request_define, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
-
-        }
+            public int ap_master;
+            public int hdg;
+            public int nav;
+            public int apr;
+            public int rev;
+            public int alt;
+        };
         private void RegistDefine()
         {
             // define a data structure
@@ -239,6 +225,35 @@ namespace FSXConnectCS
             simconnect.AddToDataDefinition(DEFINITIONS.Nav2_freq, "Nav Standby Frequency:2", "Frequency BCD16", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
             simconnect.RegisterDataDefineStruct<STRUCT_REQ_FRQ>(DEFINITIONS.Nav2_freq);
 
+            // ap buttons
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT MASTER", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT HEADING LOCK", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT NAV1 LOCK", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT APPROACH HOLD", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT BACKCOURSE HOLD", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT ALTITUDE LOCK", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_AP_BUTTONS>(DEFINITIONS.AP_buttons);
+        }
+
+        private void addSimEvent(CLIENT_EVENTS clientEvent, bool notify=false)
+        {
+            string simEvent = clientEvent.ToString();
+            simconnect.MapClientEventToSimEvent(clientEvent, simEvent);
+            if (notify == true)
+            {
+                simconnect.AddClientEventToNotificationGroup(NOTIFICATION_GROUPS.GROUP0, clientEvent, false);
+            }
+        }
+        private void sendSimEvent(CLIENT_EVENTS clientEvent, uint data=0)
+        {
+            if (simconnect == null)
+                return;
+
+            simconnect.TransmitClientEvent(0, clientEvent, data, NOTIFICATION_GROUPS.GROUP0, SIMCONNECT_EVENT_FLAG.GROUPID_IS_PRIORITY);
+        }
+        private void sendSimRequest(DEFINITIONS request_define)
+        {
+            simconnect.RequestDataOnSimObjectType(DATA_REQUESTS.REQUEST_1, request_define, 0, SIMCONNECT_SIMOBJECT_TYPE.USER);
 
         }
         private void InitClientEvent()
@@ -311,20 +326,37 @@ namespace FSXConnectCS
 
         void simconnect_OnRecvSimobjectDataBytype(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
         {
-            switch((DEFINITIONS)data.dwDefineID)
+            switch ((DEFINITIONS)data.dwDefineID)
             {
                 case DEFINITIONS.Com1_freq:
                 case DEFINITIONS.Com2_freq:
-                {
+                case DEFINITIONS.Nav1_freq:
+                case DEFINITIONS.Nav2_freq:
+                    {
                         STRUCT_REQ_FRQ freq = (STRUCT_REQ_FRQ)data.dwData[0];
-                        string msg = data.dwRequestID + "," + freq.activeFreq.ToString("x") + "," + freq.stbyFreq.ToString("x");
+                        string msg = data.dwDefineID + "," + freq.activeFreq.ToString("x") + "," + freq.stbyFreq.ToString("x");
                         udpReply(Encoding.UTF8.GetBytes(msg));
                         this.Log(msg);
                     }
                     break;
 
+                case DEFINITIONS.AP_buttons:
+                    {
+                        STRUCT_AP_BUTTONS btns = (STRUCT_AP_BUTTONS)data.dwData[0];
+                        string msg = data.dwDefineID + "," +
+                            btns.ap_master+ "," +
+                            btns.hdg+ "," +
+                            btns.nav+ "," +
+                            btns.apr+ "," +
+                            btns.rev+ "," +
+                            btns.alt;
+                        udpReply(Encoding.UTF8.GetBytes(msg));
+                        this.Log(msg);
+                    }
+                    break;
+
+
             }
-            
         }
 
 
@@ -401,8 +433,7 @@ namespace FSXConnectCS
 
         private void button1_Click(object sender, EventArgs e)
         {
-            // The following call returns identical information to:
-            // simconnect.RequestDataOnSimObject(DATA_REQUESTS.REQUEST_1, DEFINITIONS.Struct1, SimConnect.SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD.ONCE);
+            sendSimRequest(DEFINITIONS.AP_buttons);
 
         }
 
