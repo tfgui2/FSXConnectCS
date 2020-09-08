@@ -167,6 +167,7 @@ namespace FSXConnectCS
             Nav1_freq,
             Nav2_freq,
             AP_buttons,
+            hdg_sync,
             Struct1,
         }
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
@@ -195,6 +196,11 @@ namespace FSXConnectCS
             public int apr;
             public int rev;
             public int alt;
+        };
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+        struct STRUCT_HDG
+        {
+            public float hdg;
         };
         private void RegistDefine()
         {
@@ -233,6 +239,10 @@ namespace FSXConnectCS
             simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT BACKCOURSE HOLD", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
             simconnect.AddToDataDefinition(DEFINITIONS.AP_buttons, "AUTOPILOT ALTITUDE LOCK", "Bool", SIMCONNECT_DATATYPE.INT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
             simconnect.RegisterDataDefineStruct<STRUCT_AP_BUTTONS>(DEFINITIONS.AP_buttons);
+
+            // hdg sync
+            simconnect.AddToDataDefinition(DEFINITIONS.hdg_sync, "PLANE HEADING DEGREES GYRO", "Radians", SIMCONNECT_DATATYPE.FLOAT32, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+            simconnect.RegisterDataDefineStruct<STRUCT_HDG>(DEFINITIONS.hdg_sync);
         }
 
         private void addSimEvent(CLIENT_EVENTS clientEvent, bool notify=false)
@@ -355,6 +365,15 @@ namespace FSXConnectCS
                     }
                     break;
 
+                case DEFINITIONS.hdg_sync:
+                    {
+                        STRUCT_HDG temp = (STRUCT_HDG)data.dwData[0];
+                        float hdg = temp.hdg;
+                        hdg = hdg * (180.0f / 3.14f);
+                        sendSimEvent(CLIENT_EVENTS.HEADING_BUG_SET, (uint)hdg);
+                    }
+                    break;
+
 
             }
         }
@@ -383,7 +402,17 @@ namespace FSXConnectCS
             }
             else if (Enum.IsDefined(typeof(DEFINITIONS), (int)udpbyte))
             {
-                sendSimRequest((DEFINITIONS)udpbyte);
+                switch((DEFINITIONS)udpbyte)
+                {
+                    case DEFINITIONS.hdg_sync:
+                        processHdgsync();
+                        break;
+
+                    default:
+                        sendSimRequest((DEFINITIONS)udpbyte);
+                        break;   
+                }
+                
                 
             }
         }
@@ -444,6 +473,14 @@ namespace FSXConnectCS
             
 
 
+        }
+
+        private void processHdgsync()
+        {
+            // get current hdg: PLANE HEADING DEGREES GYRO
+            sendSimRequest(DEFINITIONS.hdg_sync);
+
+            // set hdg bug: HEADING_BUG_SET
         }
     }
 }
